@@ -342,91 +342,39 @@
   // BASIC INSIGHT / DIAGNOSTIC ENGINE
   // ═══════════════════════════════════════
 
-  function generateInsight(analysis) {
+  function generateInsight(analysis, rawLog) {
     if (!analysis) return null;
-    let insightTitle = "";
-    let insightDesc = "";
-    let involvedMods = new Set();
     
-    // 1. Look at crash report first
-    if (analysis.crash) {
-      const e = analysis.crash.exception.toLowerCase();
-      const st = analysis.crash.stackTrace.join(" ").toLowerCase();
-      const desc = analysis.crash.description.toLowerCase();
-
-      if (e.includes("outofmemory")) {
-        insightTitle = "Falta de Memória RAM (OutOfMemoryError)";
-        insightDesc = "O jogo ficou sem memória RAM. Tente fechar outras aplicações ou alocar mais memória nas configurações do seu launcher (aumente o parâmetro -Xmx).";
-      } else if (e.includes("classnotfound") || e.includes("noclassdeffound")) {
-        insightTitle = "Dependência Faltando (ClassNotFoundException)";
-        insightDesc = "O jogo não conseguiu encontrar o código necessário de um mod ou biblioteca. Isso geralmente significa que falta uma dependência obrigatória ou há conflito de versão.";
-      } else if (e.includes("nosuchmethod")) {
-        insightTitle = "Conflito de Versão (NoSuchMethodError)";
-        insightDesc = "Um mod tentou usar uma função que não existe. Isso ocorre quando você mistura mods feitos para versões diferentes da API do Forge/NeoForge/Fabric ou do próprio Minecraft.";
-      } else if (e.includes("nullpointer")) {
-        insightTitle = "Erro Interno no Mod (NullPointerException)";
-        insightDesc = "Um mod tentou acessar um valor que não existe. Geralmente indica um bug na programação do mod. Atualize os mods envolvidos para a versão mais recente ou reporte ao desenvolvedor.";
-      } else if (desc.includes("ticking entity") || desc.includes("ticking block")) {
-        insightTitle = "Entidade ou Bloco Corrompido";
-        insightDesc = "Um elemento corrompido no mundo causou o crash durante a atualização. Use uma ferramenta como o NBTExplorer para deletar a entidade problemática nas coordenadas mencionadas, ou restaure um backup.";
-      } else if (e.includes("spongepowered.asm.mixin")) {
-        insightTitle = "Conflito de Mixin";
-        insightDesc = "Dois ou mais mods estão tentando modificar o mesmo código base do jogo (Mixin conflict). Tente remover os mods listados na StackTrace ou atualizar dependências.";
-      } else {
-        insightTitle = "Erro Fatal Desconhecido";
-        insightDesc = "O jogo travou de forma inesperada. Verifique os mods identificados na StackTrace abaixo para isolar o problema. Use a estratégia de remover metade dos mods se a causa não for óbvia.";
-      }
-
-      // Try to find mod packages in stacktrace
-      for (const mod of analysis.mods) {
-        // Very basic heuristic: check if mod name or ID appears in stack trace
-        const cleanName = mod.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const cleanId = mod.modId.toLowerCase();
-        
-        if (cleanName.length > 3 && st.includes(cleanName)) involvedMods.add(mod.name);
-        if (cleanId.length > 3 && st.includes(cleanId)) involvedMods.add(mod.name);
-      }
-    } 
-    // 2. If no crash report, check FATAL or ERROR entries
-    else if (analysis.counts.FATAL > 0 || analysis.counts.ERROR > 0) {
-      const severeEntries = analysis.entries.filter(e => e.level === "FATAL" || e.level === "ERROR");
-      const errText = severeEntries.map(e => e.message.toLowerCase()).join(" ");
-      
-      if (errText.includes("outofmemory")) {
-        insightTitle = "Falta de Memória RAM Detectada";
-        insightDesc = "Foram detectados erros de memória (OutOfMemory). Considere fechar outras aplicações ou aumentar o limite de RAM do jogo no launcher.";
-      } else if (errText.includes("failed to load mod")) {
-        insightTitle = "Falha ao Carregar Mods";
-        insightDesc = "Um ou mais mods falharam ao serem carregados pelo Forge/NeoForge. Verifique se falta alguma biblioteca (dependency) e se todos os mods são da versão certa do Minecraft.";
-      } else {
-        insightTitle = "Atenção: Erros no Log";
-        insightDesc = `Não houve um crash completo, mas foram registrados ${severeEntries.length} erros graves. Alguns mods podem não funcionar corretamente ou o jogo pode estar instável.`;
-      }
-    } else {
-       insightTitle = "Nenhum Problema Grave Detectado";
-       insightDesc = "Não encontramos exceções fatais ou erros críticos óbvios nos logs analisados. O jogo parece ter rodado normalmente.";
+    // Call the new Rules Engine
+    const hits = window.DiagnosticEngine ? window.DiagnosticEngine.runDiagnostics(rawLog) : [];
+    
+    if (hits.length === 0) {
+       return `<h2>Resultado do Diagnóstico</h2>
+        <div class="diag-card">
+          <h3>Nenhum Problema Grave Detectado</h3>
+          <p>O Motor de Diagnóstico não encontrou padrões de erros críticos óbvios conhecidos nos logs analisados.</p>
+        </div>`;
     }
 
-    let html = `<h2>Resultado do Diagnóstico</h2>
+    let html = `<h2>Resultado do Diagnóstico (${hits.length} regras ativadas)</h2>`;
+    
+    for (const hit of hits) {
+      html += `
       <div class="diag-card">
-        <h3>${insightTitle}</h3>
-        <p>${insightDesc}</p>
-      </div>`;
-
-    if (involvedMods.size > 0) {
-      html += `<div class="diag-card">
-        <h3>Mods Possivelmente Envolvidos</h3>
-        <p>Abaixo estão os mods que apareceram nas linhas de erro crítico e podem ser a causa do problema:</p>
-        <ul style="margin:8px 0 0 20px;padding:0;color:var(--text-main)">`;
-      for (const modName of involvedMods) {
-        html += `<li><strong>${escapeHtml(modName)}</strong></li>`;
+        <h3>🚨 ${escapeHtml(hit.title)}</h3>
+        <p style="color:var(--text-main); margin-bottom: 12px;"><strong>Resumo:</strong> ${escapeHtml(hit.diagnosis)}</p>
+        <strong>Possíveis Soluções:</strong>
+        <ul style="margin:8px 0 0 20px;padding:0;color:var(--text-sec)">`;
+        
+      for (const fix of hit.fixes) {
+        html += `<li>${escapeHtml(fix)}</li>`;
       }
       html += `</ul></div>`;
     }
 
     if (analysis.crash) {
-      html += `<div class="diag-card">
-        <h3>Detalhes do Crash Report</h3>
+      html += `<div class="diag-card" style="opacity: 0.8">
+        <h3>Detalhes do Crash Report Original</h3>
         <p><strong>Descrição:</strong> ${escapeHtml(analysis.crash.description)}</p>
         <p><strong>Exceção:</strong> ${escapeHtml(analysis.crash.exception)}</p>
       </div>`;
