@@ -235,6 +235,23 @@ window.DiagnosticEngine = (function() {
       }
     },
     {
+      id: "mod-loading-failure-generic",
+      title: "Falha de Carregamento (Erro Genérico)",
+      severity: "critical",
+      priority: 99,
+      detect: /Mod loading failures have occurred/m,
+      run: (log) => {
+         return {
+            title: "Mod Loading Failures",
+            diagnosis: "O Forge/NeoForge reportou que um ou mais mods falharam ao carregar, o que causou o crash. Esse é um erro 'genérico' e a causa real está sempre detalhada nas linhas um pouco antes desse erro no log.",
+            fixes: [
+               "Verifique se o Diagnóstico apontou dependências ausentes ou mods incompatíveis acima.",
+               "Volte para a aba 'Visualizador de Logs', filtre por 'ERROR' e procure por mensagens detalhadas antes do crash report."
+            ]
+         };
+      }
+    },
+    {
       id: "duplicate-mods",
       title: "Mods duplicados na pasta",
       severity: "critical",
