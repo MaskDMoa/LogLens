@@ -750,7 +750,7 @@
     }
 
     // Populate diag content
-    els.diagContent.innerHTML = generateInsight(a) || "<p>Nenhuma análise disponível.</p>";
+    els.diagContent.innerHTML = generateInsight(a, state.rawLog) || "<p>Nenhuma análise disponível.</p>";
   }
 
   function selectEntry(idx) {
