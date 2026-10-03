@@ -99,6 +99,7 @@
     allEntries: [],      // { line, timestamp, thread, level, source, message, raw }
     filteredEntries: [],
     analysis: null,
+    hideNoise: true,     // Noise reduction toggle
 
     // Filters
     activeLevels: new Set(["INFO", "WARN", "ERROR", "FATAL", "DEBUG", "UNKNOWN"]),
@@ -111,6 +112,93 @@
     isAtBottom: true,
     sourceName: "",
   };
+
+  // ═══════════════════════════════════════
+  // NOISE PATTERNS — repetitive lines that clutter logs
+  // ═══════════════════════════════════════
+  const NOISE_PATTERNS = [
+    {
+      id: "found_mod",
+      label: "Mods encontrados",
+      test: (e) => e.message.startsWith("Found mod file") || e.message.startsWith("Found library file") || e.message.startsWith("Found gamelibrary file"),
+    },
+    {
+      id: "refmap_warn",
+      label: "Avisos de Reference Map",
+      test: (e) => e.message.includes("Reference map") && e.message.includes("could not be read"),
+    },
+    {
+      id: "class_not_found",
+      label: "Classes não encontradas (opcionais)",
+      test: (e) => e.message.startsWith("Error loading class:") || (e.message.startsWith("@Mixin target") && e.message.includes("was not found")),
+    },
+    {
+      id: "mod_list_spam",
+      label: "Lista de mods (Mod List)",
+      test: (e) => e.message.startsWith("Mod List:") || e.message.startsWith("Found Kotlin-containing") || e.message.startsWith("Looks like a standalone"),
+    },
+    {
+      id: "launcher_args",
+      label: "Argumentos do launcher (dados sensíveis)",
+      test: (e) => e.message.startsWith("ModLauncher running: args") || e.message.startsWith("Launching target") && e.message.includes("--accessToken"),
+    },
+    {
+      id: "dependencies",
+      label: "Dependências JarInJar",
+      test: (e) => e.message.includes("dependencies adding them to mods") || (e.message.includes("[parent:") && e.message.includes("locator: jarinjar")),
+    },
+    {
+      id: "mixin_disable",
+      label: "Mixins desabilitados/forçados",
+      test: (e) => e.message.startsWith("Force-disabling mixin") || e.message.startsWith("Force-enabling mixin"),
+    },
+    {
+      id: "replaced_calls",
+      label: "Chamadas substituídas (patches)",
+      test: (e) => e.message.startsWith("Replaced") && e.message.includes("calls to"),
+    },
+  ];
+
+  /**
+   * Groups consecutive noise entries into collapsible summary rows.
+   * Returns a new array where noise sequences are replaced by a single
+   * { _noiseGroup: true, pattern, entries[], collapsed } object.
+   */
+  function groupNoise(entries) {
+    const result = [];
+    let i = 0;
+    while (i < entries.length) {
+      const e = entries[i];
+      // Find which noise pattern matches
+      const pattern = NOISE_PATTERNS.find((p) => p.test(e));
+      if (pattern) {
+        // Collect all consecutive entries matching the same pattern
+        const group = [];
+        while (i < entries.length && pattern.test(entries[i])) {
+          group.push(entries[i]);
+          i++;
+        }
+        if (group.length >= 3) {
+          // Only group if 3+ lines; otherwise keep individual
+          result.push({
+            _noiseGroup: true,
+            id: pattern.id,
+            label: pattern.label,
+            entries: group,
+            collapsed: true,
+            level: group[0].level,
+            line: group[0].line,
+          });
+        } else {
+          result.push(...group);
+        }
+      } else {
+        result.push(e);
+        i++;
+      }
+    }
+    return result;
+  }
 
   // ═══════════════════════════════════════
   // LOG PARSER
@@ -321,6 +409,30 @@
     let html = "";
     for (let i = startIdx; i < endIdx; i++) {
       const e = entries[i];
+
+      // ── Noise group (collapsed row) ──
+      if (e._noiseGroup) {
+        const count = e.entries.length;
+        const chevron = `<svg class="noise-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+        html += `<div class="noise-group${e.collapsed ? '' : ' expanded'}" data-noise-idx="${i}">
+          <div class="noise-header" data-noise-toggle="${i}">
+            ${chevron}
+            <span class="noise-badge">${count}</span>
+            <span class="noise-label">${escapeHtml(e.label)}</span>
+            <span class="noise-hint">linhas ${e.entries[0].line}–${e.entries[count-1].line} (clique para expandir)</span>
+          </div>
+          <div class="noise-body" style="display:${e.collapsed ? 'none' : 'block'}">`;
+        // Render inner entries
+        for (const inner of e.entries) {
+          html += `<div class="log-entry noise-child">
+            <span class="log-entry-line">${inner.line}</span>
+            <span class="log-entry-message">${escapeHtml(inner.message)}</span>
+          </div>`;
+        }
+        html += `</div></div>`;
+        continue;
+      }
+
       const isSelected = i === state.selectedIndex;
       const levelClass = (e.level === "WARN" || e.level === "ERROR" || e.level === "FATAL") ? ` level-${e.level.toLowerCase()}` : "";
       const selectedClass = isSelected ? " selected" : "";
@@ -384,7 +496,8 @@
   function applyFilters() {
     const term = state.searchTerm.toLowerCase();
 
-    state.filteredEntries = state.allEntries.filter((e) => {
+    // First filter individual entries
+    const filtered = state.allEntries.filter((e) => {
       // Level filter
       if (!state.activeLevels.has(e.level)) return false;
 
@@ -399,6 +512,9 @@
 
       return true;
     });
+
+    // Then apply noise grouping if enabled
+    state.filteredEntries = state.hideNoise ? groupNoise(filtered) : filtered;
 
     updateFilterUI();
     updateLogCount();
@@ -448,12 +564,19 @@
   }
 
   function updateLogCount() {
-    const total = state.filteredEntries.length;
+    // Count visible entries (noise groups count as their inner count)
+    let visible = 0;
+    for (const e of state.filteredEntries) {
+      visible += e._noiseGroup ? e.entries.length : 1;
+    }
     const all = state.allEntries.length;
-    if (total === all) {
-      els.logCount.textContent = `${total.toLocaleString()} entradas`;
+    const grouped = state.filteredEntries.filter(e => e._noiseGroup).reduce((s, g) => s + g.entries.length, 0);
+    if (visible === all && grouped === 0) {
+      els.logCount.textContent = `${visible.toLocaleString()} entradas`;
+    } else if (grouped > 0) {
+      els.logCount.textContent = `${visible.toLocaleString()} entradas (${grouped} agrupadas)`;
     } else {
-      els.logCount.textContent = `${total.toLocaleString()} de ${all.toLocaleString()}`;
+      els.logCount.textContent = `${visible.toLocaleString()} de ${all.toLocaleString()}`;
     }
   }
 
@@ -730,8 +853,23 @@
       els.newEntriesBanner.classList.toggle("visible", !atBottom && state.filteredEntries.length > 0);
     });
 
-    // Click on log entry
+    // Click on log entry or noise group header
     els.logSpacer.addEventListener("click", (e) => {
+      // Noise group toggle
+      const noiseHeader = e.target.closest("[data-noise-toggle]");
+      if (noiseHeader) {
+        const idx = parseInt(noiseHeader.dataset.noiseToggle, 10);
+        const group = state.filteredEntries[idx];
+        if (group && group._noiseGroup) {
+          group.collapsed = !group.collapsed;
+          const groupEl = noiseHeader.closest(".noise-group");
+          const body = groupEl.querySelector(".noise-body");
+          groupEl.classList.toggle("expanded", !group.collapsed);
+          body.style.display = group.collapsed ? "none" : "block";
+        }
+        return;
+      }
+
       const entry = e.target.closest("[data-idx]");
       if (entry) {
         selectEntry(parseInt(entry.dataset.idx, 10));
@@ -778,6 +916,17 @@
         el.classList.toggle("log-wrap", state.wrapLines);
       });
     });
+
+    // Noise reduction toggle
+    const btnNoise = document.getElementById("btn-noise");
+    if (btnNoise) {
+      btnNoise.style.background = state.hideNoise ? "rgba(255,255,255,0.08)" : "";
+      btnNoise.addEventListener("click", () => {
+        state.hideNoise = !state.hideNoise;
+        btnNoise.style.background = state.hideNoise ? "rgba(255,255,255,0.08)" : "";
+        applyFilters();
+      });
+    }
 
     // Keyboard
     document.addEventListener("keydown", (e) => {
