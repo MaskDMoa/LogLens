@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <link rel="icon" type="image/jpeg" href="favicon.jpg" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LogLens — Leitor de Logs</title>
+  <meta name="description" content="Ferramenta sofisticada para leitura e investigação de logs do Minecraft via GnomeBot e mclo.gs" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Grain texture overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- Loading overlay -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p class="loading-text" id="loading-text">Carregando log...</p>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ═══════════════════════════════════
+       STATE: INITIAL
+       ═══════════════════════════════════ -->
+  <div id="state-initial">
+    <!-- Top bar -->
+    <nav class="topbar" role="banner">
+      <div class="topbar-left">
+        <div class="topbar-brand" id="brand-link">Log<span>Lens</span></div>
+        <div class="topbar-sep" aria-hidden="true"></div>
+        <div class="topbar-status">
+          <div class="status-dot idle" id="status-dot-initial"></div>
+          <span>Nenhuma fonte conectada</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-icon" id="btn-settings-initial" title="Configurações" aria-label="Configurações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Content -->
+    <main class="initial-content">
+      <!-- Hero title (partially behind panels) -->
+      <h1 class="hero-title" aria-hidden="true">LOG<br>LENS</h1>
+
+      <!-- Import panel -->
+      <section class="import-panel glass" aria-labelledby="import-heading">
+        <h2 id="import-heading">Carregar Log</h2>
+        <p>Cole uma URL do GnomeBot ou mclo.gs, carregue um arquivo ou cole o conteúdo diretamente.</p>
+
+        <div class="import-url-row">
+          <input type="text" class="input" id="url-input" placeholder="https://gnomebot.dev/paste/mclogs/..." aria-label="URL do log" />
+          <button class="btn btn-primary" id="btn-fetch">Buscar</button>
+        </div>
+
+        <div class="import-divider">ou</div>
+
+        <div class="import-actions">
+          <button class="btn" id="btn-upload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Carregar arquivo
+          </button>
+          <button class="btn" id="btn-paste">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+            Colar conteúdo
+          </button>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="drop-zone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Arraste um arquivo de log aqui</p>
+        </div>
+      </section>
+
+      <!-- Secondary panels -->
+      <div class="secondary-panels">
+        <section class="secondary-panel glass" aria-labelledby="recent-heading">
+          <h3 id="recent-heading">Recentes</h3>
+          <ul class="recent-list" id="recent-list">
+            <!-- Populated dynamically -->
+          </ul>
+          <p class="info-text" id="no-recent" style="display:none">Nenhum log recente.</p>
+        </section>
+        <section class="secondary-panel glass" aria-labelledby="info-heading">
+          <h3 id="info-heading">Sobre</h3>
+          <p class="info-text">
+            LogLens lê logs do <code>mclo.gs</code> e do GnomeBot. Cole a URL ou carregue um arquivo <code>.log</code> ou <code>.txt</code> para começar a investigar.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" accept=".log,.txt,.gz" class="sr-only" />
+  </div>
+
+  <!-- Paste modal -->
+  <div id="paste-modal" class="loading-overlay" role="dialog" aria-label="Colar conteúdo">
+    <section class="import-panel glass" style="max-width:620px">
+      <h2>Colar Conteúdo do Log</h2>
+      <p>Cole o conteúdo completo do log abaixo.</p>
+      <textarea class="input" id="paste-textarea" rows="12" style="resize:vertical;font-family:var(--font-mono);font-size:12px;line-height:1.6" placeholder="Cole o log aqui..."></textarea>
+      <div class="import-actions" style="margin-top:16px">
+        <button class="btn" id="btn-paste-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="btn-paste-confirm">Analisar</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       STATE: INVESTIGATION
+       ═══════════════════════════════════ -->
+  <div id="state-investigation">
+    <!-- Top bar (compact) -->
+    <nav class="topbar" role="banner">
+      <div class="topbar-left">
+        <div class="topbar-brand" id="brand-back" title="Voltar ao início">Log<span>Lens</span></div>
+        <div class="topbar-sep" aria-hidden="true"></div>
+        <div class="topbar-context" id="topbar-context">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span id="source-name">log.txt</span>
+        </div>
+        <div class="topbar-sep" aria-hidden="true"></div>
+        <div class="topbar-status">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-text">Carregado</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn" id="btn-import-new">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo log
+        </button>
+        <button class="btn btn-icon" id="btn-settings" title="Configurações" aria-label="Configurações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <!-- Sidebar -->
+      <aside class="sidebar glass-opaque" id="sidebar">
+        <!-- Stats -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Resumo</div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-label">Entradas</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="stat-mods">0</div>
+              <div class="stat-label">Mods</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="stat-errors">0</div>
+              <div class="stat-label">Erros</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="stat-warnings">0</div>
+              <div class="stat-label">Avisos</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Environment info -->
+        <div class="sidebar-section" id="env-section">
+          <div class="sidebar-label">Ambiente</div>
+          <div id="env-info" style="font-size:12px;color:var(--text-sec);display:flex;flex-direction:column;gap:4px">
+        <!-- Severity filter -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Severidade</div>
+          <div class="sev-filter" id="sev-filter">
+            <label class="sev-check">
+              <input type="checkbox" checked data-level="INFO" />
+              <span class="sev-dot" style="background:var(--sev-info)"></span>
+              Info
+              <span class="sev-count" id="count-info">0</span>
+            </label>
+            <label class="sev-check">
+              <input type="checkbox" checked data-level="WARN" />
+              <span class="sev-dot" style="background:var(--sev-warn)"></span>
+              Warn
+              <span class="sev-count" id="count-warn">0</span>
+            </label>
+            <label class="sev-check">
+              <input type="checkbox" checked data-level="ERROR" />
+              <span class="sev-dot" style="background:var(--sev-error)"></span>
+              Error
+              <span class="sev-count" id="count-error">0</span>
+            </label>
+            <label class="sev-check">
+              <input type="checkbox" checked data-level="FATAL" />
+              <span class="sev-dot" style="background:var(--sev-fatal)"></span>
+              Fatal
+              <span class="sev-count" id="count-fatal">0</span>
+            </label>
+            <label class="sev-check">
+              <input type="checkbox" checked data-level="DEBUG" />
+              <span class="sev-dot" style="background:var(--sev-debug)"></span>
+              Debug
+              <span class="sev-count" id="count-debug">0</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Active filters -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Filtros Ativos</div>
+          <div class="active-filters" id="active-filters">
+            <span class="no-filters-text" id="no-filters">Nenhum filtro aplicado</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Log area -->
+      <main class="log-area" id="log-area">
+        <!-- Tabs Header -->
+        <div class="tabs-header">
+          <button class="tab-btn active" data-target="log-pane" id="tab-logs">Visualizador de Logs</button>
+          <button class="tab-btn" data-target="diag-pane" id="tab-diag">Diagnóstico Inteligente</button>
+        </div>
+
+        <!-- Log Pane -->
+        <div class="tab-pane active" id="log-pane">
+          <!-- Toolbar -->
+          <div class="log-toolbar">
+            <div class="search-wrapper">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="input" id="search-input" placeholder="Buscar nos logs..." aria-label="Buscar nos logs" />
+            </div>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <span class="log-count" id="log-count">0 entradas</span>
+            <div class="toolbar-right">
+            <button class="btn btn-icon" id="btn-wrap" title="Quebrar linhas longas" aria-label="Quebrar linhas">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M3 12h15a3 3 0 1 1 0 6h-4"/><polyline points="13 16 11 18 13 20"/><path d="M3 18h4"/></svg>
+            </button>
+            <button class="btn btn-icon" id="btn-noise" title="Agrupar linhas repetitivas (reduzir ruído)" aria-label="Reduzir ruído" style="background:rgba(255,255,255,0.08)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </button>
+            <button class="btn btn-icon" id="btn-clear-filters" title="Limpar filtros" aria-label="Limpar filtros">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/><line x1="4" y1="21" x2="20" y2="5" stroke-width="2"/></svg>
+            </button>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <button class="btn btn-icon" id="btn-scroll-bottom" title="Ir ao final" aria-label="Ir ao final">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Log list (virtual scroll) -->
+        <div class="log-list-container" id="log-list-container">
+          <div class="log-list-viewport" id="log-viewport">
+            <div class="log-list-spacer" id="log-spacer">
+              <!-- Virtual entries rendered here -->
+            </div>
+          </div>
+          <!-- Empty state -->
+          <div class="log-empty hidden" id="log-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="empty-title">Nenhuma entrada encontrada</span>
+            <span class="sub" id="empty-sub">Tente ajustar os filtros de severidade ou o termo de busca.</span>
+          </div>
+          <!-- New entries banner -->
+          <div class="new-entries-banner" id="new-entries-banner">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+            <span id="new-entries-text">Ir ao final</span>
+          </div>
+        </div>
+        <!-- Diagnostic Pane -->
+        <div class="tab-pane" id="diag-pane" style="display:none">
+          <div class="diag-content" id="diag-content">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </main>
+
+      <!-- Detail panel -->
+      <aside class="detail-panel glass-opaque" id="detail-panel">
+        <div class="detail-header">
+          <h3>Detalhes da Entrada</h3>
+          <button class="detail-close" id="detail-close" aria-label="Fechar painel de detalhes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- Meta grid -->
+        <div class="detail-section">
+          <div class="detail-label">Metadados</div>
+          <div class="detail-meta-grid">
+            <div>
+              <div class="detail-label" style="margin-bottom:2px">Linha</div>
+              <div class="detail-value" id="detail-line">—</div>
+            </div>
+            <div>
+              <div class="detail-label" style="margin-bottom:2px">Severidade</div>
+              <div class="detail-value" id="detail-level">—</div>
+            </div>
+            <div>
+              <div class="detail-label" style="margin-bottom:2px">Timestamp</div>
+              <div class="detail-value" id="detail-timestamp">—</div>
+            </div>
+            <div>
+              <div class="detail-label" style="margin-bottom:2px">Thread</div>
+              <div class="detail-value" id="detail-thread">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Origem</div>
+          <div class="detail-value" id="detail-source">—</div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-label">Mensagem Completa</div>
+          <div class="detail-message-full" id="detail-message">—</div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="btn" id="btn-copy-msg">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copiar mensagem
+          </button>
+          <button class="btn" id="btn-filter-source">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtrar por origem
+          </button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="diagnostics.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
