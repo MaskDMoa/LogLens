@@ -56,8 +56,10 @@
     statMods:         $("stat-mods"),
     statErrors:       $("stat-errors"),
     statWarnings:     $("stat-warnings"),
-    envInfo:          $("env-info"),
     envSection:       $("env-section"),
+    envInfo:          $("env-info"),
+    insightSection:   $("insight-section"),
+    insightInfo:      $("insight-info"),
     sevFilter:        $("sev-filter"),
     countInfo:        $("count-info"),
     countWarn:        $("count-warn"),
@@ -329,6 +331,72 @@
       javaVersion:      extract(rawLog, /Java Version:\s*(.+?)(?:,|\n|\r)/),
       startupTime:      extract(rawLog, /Game took\s+([\d.]+)\s+seconds?\s+to\s+start/i),
     };
+  }
+
+  // ═══════════════════════════════════════
+  // BASIC INSIGHT / DIAGNOSTIC ENGINE
+  // ═══════════════════════════════════════
+
+  function generateInsight(analysis) {
+    if (!analysis) return null;
+    let insight = null;
+    let involvedMods = new Set();
+    
+    // 1. Look at crash report first
+    if (analysis.crash) {
+      const e = analysis.crash.exception.toLowerCase();
+      const st = analysis.crash.stackTrace.join(" ").toLowerCase();
+
+      if (e.includes("outofmemory")) {
+        insight = "O jogo ficou sem memória RAM (OutOfMemoryError). Tente alocar mais memória nas configurações do seu launcher.";
+      } else if (e.includes("classnotfound")) {
+        insight = "Falta uma classe ou dependência (ClassNotFoundException). Verifique se você instalou todas as bibliotecas necessárias para os seus mods.";
+      } else if (e.includes("nosuchmethod")) {
+        insight = "Conflito de versão (NoSuchMethodError). Um mod tentou usar uma função que não existe. Geralmente causado por mods incompatíveis com a versão do Minecraft ou do Forge/NeoForge.";
+      } else if (e.includes("nullpointer")) {
+        insight = "Erro interno (NullPointerException). Um mod tentou acessar um valor inexistente. É um bug no código de algum mod.";
+      } else if (e.includes("ticking entity") || e.includes("ticking block")) {
+        insight = "Uma entidade ou bloco corrompido causou crash (Ticking Entity/Block). Pode ser necessário remover a entidade com um editor de mapa (NBTExplorer) ou restaurar um backup.";
+      } else {
+        insight = "Ocorreu um erro fatal que causou o crash do jogo. Verifique os mods listados abaixo para identificar possíveis culpados.";
+      }
+
+      // Try to find mod packages in stacktrace
+      for (const mod of analysis.mods) {
+        // Very basic heuristic: check if mod name or ID appears in stack trace
+        const cleanName = mod.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const cleanId = mod.modId.toLowerCase();
+        
+        if (cleanName.length > 3 && st.includes(cleanName)) involvedMods.add(mod.name);
+        if (cleanId.length > 3 && st.includes(cleanId)) involvedMods.add(mod.name);
+      }
+    } 
+    // 2. If no crash report, check FATAL or ERROR entries
+    else if (analysis.counts.FATAL > 0 || analysis.counts.ERROR > 0) {
+      const severeEntries = analysis.entries.filter(e => e.level === "FATAL" || e.level === "ERROR");
+      const errText = severeEntries.map(e => e.message.toLowerCase()).join(" ");
+      
+      if (errText.includes("outofmemory")) {
+        insight = "Erros de falta de memória (OutOfMemory) foram detectados. Considere alocar mais memória RAM no seu launcher.";
+      } else if (errText.includes("failed to load mod")) {
+        insight = "Um ou mais mods falharam ao carregar. Verifique dependências ausentes ou versões incompatíveis.";
+      } else {
+        insight = `Nenhum crash report encontrado, mas existem ${severeEntries.length} erros graves no log que podem indicar o problema.`;
+      }
+    }
+
+    if (!insight) return null;
+
+    let html = `<strong style="color:var(--text-main)">Resumo:</strong> ${insight}`;
+    if (involvedMods.size > 0) {
+      html += `<br><br><strong style="color:var(--text-main)">Mods possivelmente envolvidos:</strong><ul style="margin:4px 0 0 20px;padding:0;color:var(--text-dim)">`;
+      for (const modName of involvedMods) {
+        html += `<li>${escapeHtml(modName)}</li>`;
+      }
+      html += `</ul>`;
+    }
+    
+    return html;
   }
 
   // ═══════════════════════════════════════
@@ -689,6 +757,15 @@
       els.envSection.style.display = "";
     } else {
       els.envSection.style.display = "none";
+    }
+
+    // Populate insight
+    const insightHtml = generateInsight(a);
+    if (insightHtml) {
+      els.insightInfo.innerHTML = insightHtml;
+      els.insightSection.style.display = "";
+    } else {
+      els.insightSection.style.display = "none";
     }
   }
 
