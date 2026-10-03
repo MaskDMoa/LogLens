@@ -173,17 +173,6 @@
         <div class="sidebar-section" id="env-section">
           <div class="sidebar-label">Ambiente</div>
           <div id="env-info" style="font-size:12px;color:var(--text-sec);display:flex;flex-direction:column;gap:4px">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-        <!-- Insight / Diagnóstico -->
-        <div class="sidebar-section" id="insight-section" style="display:none">
-          <div class="sidebar-label">Diagnóstico (Beta)</div>
-          <div id="insight-info" style="font-size:12px;color:var(--text-sec);background:rgba(255,255,255,0.05);padding:10px;border-radius:6px;line-height:1.4">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-
         <!-- Severity filter -->
         <div class="sidebar-section">
           <div class="sidebar-label">Severidade</div>
@@ -232,15 +221,23 @@
 
       <!-- Log area -->
       <main class="log-area" id="log-area">
-        <!-- Toolbar -->
-        <div class="log-toolbar">
-          <div class="search-wrapper">
-            <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="input" id="search-input" placeholder="Buscar nos logs..." aria-label="Buscar nos logs" />
-          </div>
-          <div class="toolbar-sep" aria-hidden="true"></div>
-          <span class="log-count" id="log-count">0 entradas</span>
-          <div class="toolbar-right">
+        <!-- Tabs Header -->
+        <div class="tabs-header">
+          <button class="tab-btn active" data-target="log-pane" id="tab-logs">Visualizador de Logs</button>
+          <button class="tab-btn" data-target="diag-pane" id="tab-diag">Diagnóstico Inteligente</button>
+        </div>
+
+        <!-- Log Pane -->
+        <div class="tab-pane active" id="log-pane">
+          <!-- Toolbar -->
+          <div class="log-toolbar">
+            <div class="search-wrapper">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="input" id="search-input" placeholder="Buscar nos logs..." aria-label="Buscar nos logs" />
+            </div>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <span class="log-count" id="log-count">0 entradas</span>
+            <div class="toolbar-right">
             <button class="btn btn-icon" id="btn-wrap" title="Quebrar linhas longas" aria-label="Quebrar linhas">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M3 12h15a3 3 0 1 1 0 6h-4"/><polyline points="13 16 11 18 13 20"/><path d="M3 18h4"/></svg>
             </button>
@@ -274,6 +271,12 @@
           <div class="new-entries-banner" id="new-entries-banner">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
             <span id="new-entries-text">Ir ao final</span>
+          </div>
+        </div>
+        <!-- Diagnostic Pane -->
+        <div class="tab-pane" id="diag-pane" style="display:none">
+          <div class="diag-content" id="diag-content">
+            <!-- Populated by JS -->
           </div>
         </div>
       </main>
