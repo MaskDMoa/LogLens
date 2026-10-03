@@ -283,10 +283,13 @@ window.DiagnosticEngine = (function() {
     RULES.sort((a, b) => a.priority - b.priority);
 
     for (const rule of RULES) {
-      if (rule.detect.test(rawLog)) {
+      const match = rule.detect.exec(rawLog);
+      if (match) {
         try {
           const result = rule.run(rawLog);
           if (result) {
+            // Save the exact line that triggered the rule to jump to it later
+            result.matchedText = match[0].split('\n')[0].trim();
             hits.push(result);
           }
         } catch (e) {

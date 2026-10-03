@@ -369,7 +369,16 @@
       for (const fix of hit.fixes) {
         html += `<li>${escapeHtml(fix)}</li>`;
       }
-      html += `</ul></div>`;
+      html += `</ul>`;
+      
+      if (hit.matchedText) {
+        html += `<button class="btn btn-jump-to-error" data-search="${escapeHtml(hit.matchedText)}" style="margin-top: 16px; background: rgba(255,255,255,0.1)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Procurar no Log
+        </button>`;
+      }
+      
+      html += `</div>`;
     }
 
     if (analysis.crash) {
@@ -1030,6 +1039,23 @@
       els.tabLogs.classList.remove("active");
       els.logPane.style.display = "none";
       els.diagPane.style.display = "";
+    });
+
+    // Diagnostic card buttons (delegation)
+    els.diagContent.addEventListener("click", (e) => {
+      const btn = e.target.closest(".btn-jump-to-error");
+      if (btn) {
+        const textToSearch = btn.getAttribute("data-search");
+        if (textToSearch) {
+          // Switch to logs tab
+          els.tabLogs.click();
+          // Populate search
+          els.searchInput.value = textToSearch;
+          state.searchQuery = textToSearch.toLowerCase();
+          // Re-filter and render
+          applyFilters();
+        }
+      }
     });
   }
 
